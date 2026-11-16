@@ -36,7 +36,8 @@ It prints labelled sections: `BASE`, `HEAD`, `UNCOMMITTED`, `OUTPUT_FILE`,
 `COMMITS`, `STAT`, `NAME_STATUS`, `NUMSTAT`, `RESULT`.
 
 - Non-zero exit: report the error message to the user and stop. Don't guess a
-  different base unless the user asks.
+  different base unless the user asks, and don't run the fix it suggests
+  (e.g. `git fetch --unshallow`) yourself — the skill never fetches.
 - `RESULT` is `NO_CHANGES`: tell the user the branch has no committed changes
   vs the base (mention uncommitted changes if listed) and stop; don't write
   `pr-diff.md`.
@@ -50,6 +51,8 @@ fetches.
 Use `NAME_STATUS` and `NUMSTAT` to pick files, then read their diffs with
 `git diff <base_ref>...HEAD -- <path>` (use `base_ref` from the `BASE` section).
 
+- Fields in `NAME_STATUS` and `NUMSTAT` are tab-separated, so paths may
+  contain spaces; renames list the old path then the new one.
 - Skip noise: lockfiles, generated/minified files, vendored code, snapshots,
   binary files (`-` in `NUMSTAT`). Count them, but don't diagram them
   individually.
@@ -145,5 +148,10 @@ In your reply to the user:
 - the summary
 - the path to `pr-diff.md`
 - if uncommitted changes exist, say they were not included
-- if `OUTPUT_FILE` says `not ignored`, mention they may want to add
-  `pr-diff.md` to `.gitignore` — do not do it yourself
+- `OUTPUT_FILE` status:
+  - `not ignored`: mention they may want to add `pr-diff.md` to `.gitignore`
+    — do not do it yourself
+  - `tracked`: mention that `pr-diff.md` is committed in this repo and now
+    shows as modified; don't suggest `.gitignore` (it has no effect on
+    tracked files)
+  - `ignored`: say nothing
