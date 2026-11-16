@@ -81,9 +81,9 @@ meaningful change:
 | **Test** | test files or suites; draw an edge to what they exercise |
 | **Doc** | README and other prose; one node per file, no symbol-level nodes |
 
-For a file with several distinct changes, make the file a `subgraph` and its
-changed symbols the nodes inside it. Don't invent classes, endpoints or
-tables to fill the diagram.
+Several changes inside one file or class (methods, fields) stay one node;
+the individual symbols go in the **What changed** table (Step 6). Don't
+invent classes, endpoints or tables to fill the diagram.
 
 Status per node:
 - **added** — new file or new symbol
@@ -91,10 +91,11 @@ Status per node:
   as modified and are labelled `old → new`
 - **deleted** — removed file or symbol
 
-Column and field changes don't get their own nodes. Put them in the label of
-the table or model node, which is then **modified**: `+` added, `-` removed,
-`~` changed, e.g. `"users (+ last_order_at, - legacy_id)"`. List at most three,
-then `+N more`.
+Column and field changes don't get their own nodes. The table or model node
+is **modified**, and the columns are listed in the **What changed** table:
+`+` added, `−` removed, `~` changed. In a component diagram with room to
+spare, up to two may also go in the node label, e.g.
+`"users (+ last_order_at)"`.
 
 Dependencies: draw an edge `A --> B` when changed code in A imports, calls,
 queries, runs, tests or documents B (e.g. endpoint → service → model → table,
@@ -110,18 +111,52 @@ colour already shows they are gone.
 
 ## Step 4 — Build the Mermaid flowchart
 
-- Use `flowchart LR`.
-- One `subgraph` per module/directory.
-- Exception: DB tables. Put all table nodes in a single subgraph titled
-  `database`, whatever directory the migrations live in, and name the
-  migration file(s) in the title when there are three or fewer, e.g.
-  `subgraph db["database (migrations/002_create_orders.sql)"]`. Draw tables
-  as cylinders: `t1[("orders")]`. Model/ORM classes stay in their own
-  directory's subgraph with an edge to their table.
-- Keep node IDs simple (`n1`, `svc_user`); put readable text in labels and
-  quote labels containing special characters: `n1["POST /users"]`.
-- Cap at ~30 nodes. Beyond that, collapse small changes into one node per
-  directory (e.g. `"utils/ (4 files modified)"`).
+The diagram is a map, not an inventory. Its job is to show in ten seconds
+which parts changed and how they connect. The full list goes in the
+**What changed** table (Step 6). Hard limits for every diagram:
+**at most 12 nodes and 15 edges.**
+
+### Choose the level of detail
+
+Count the components from Step 3, ignoring noise.
+
+- **12 or fewer → component diagram.** One node per component.
+- **More than 12 → overview diagram.** One node per *area*:
+  1. Start with one node per top-level app, package or directory that has
+     meaningful changes.
+  2. If that gives fewer than 6 nodes, split the area with the most changed
+     lines into its modules or features, inside one `subgraph`.
+  3. Small supporting areas (CI, docs, config) get no node; they go in the
+     table.
+
+  Label an area with its name and what changed in counts, e.g.
+  `"jobs (new, 6 endpoints)"`. An area is **added** if everything in it is
+  new, **deleted** if everything in it is removed, otherwise **modified**.
+  Draw one edge per pair of connected areas, not one per component.
+
+### Rules for both
+
+- Use `flowchart TD`, so layers read top to bottom (UI → API → data).
+- At most one level of `subgraph`; never a subgraph inside a subgraph.
+- Leave out wiring that everything touches: module registration, route
+  tables, shared HTTP clients, config, error helpers. They add arrows
+  without adding meaning, so they go in the table only, unless the wiring
+  is the point of the PR.
+- Spend edges carefully: skip an edge that is implied by two others
+  (if A → B and B → C, skip A → C) and any edge you would need a label to
+  justify but can't.
+- DB tables: with four or fewer, put them in a single subgraph titled
+  `database` and draw each as a cylinder, `t1[("orders")]`. With more, use
+  one cylinder for all of them: `db[("database (9 tables, new)")]`.
+- External services (a cloud bucket, a third-party API) appear only when
+  the PR adds or changes the integration, as plain unstyled nodes, three
+  at most.
+- Keep node IDs simple (`n1`, `svc_user`) and quote every label. Keep
+  labels under about 40 characters: name first, then the status in
+  brackets, `(new)`, `(changed)`, `(removed)` or `(renamed)`, so the
+  diagram still reads without colour. Never start a label with `+`, `-`,
+  `*` or a number and a dot; Mermaid can read those as a Markdown list.
+- No legend nodes. The legend is a line of text under the diagram (Step 6).
 - Apply these classes exactly:
 
 ```mermaid
@@ -130,8 +165,7 @@ classDef modified fill:#fff3cd,stroke:#d4a017,color:#856404
 classDef deleted fill:#f8d7da,stroke:#dc3545,color:#721c24
 ```
 
-Assign with `class n1,n2 added` etc. Include a small legend subgraph with one
-node per status.
+Assign with `class n1,n2 added` etc.
 
 ## Step 5 — Write the summary
 
@@ -159,11 +193,20 @@ flowchart LR
   ...
 ```
 
+**Legend:** 🟩 new · 🟨 changed · 🟥 removed · dashed arrow = dependency removed
+
 **Not diagrammed:** 1 lockfile, 2 generated files   ← only if files were skipped as noise
 
 ## Summary
 
 - ...
+
+## What changed
+
+| Area | Change | Status |
+|------|--------|--------|
+| API · jobs | 6 endpoints under `/jobs`; `JobsService`, `JobMatcher` | new |
+| Database | `users`: + `last_order_at`, − `email` | changed |
 
 <details>
 <summary>Raw diff stat</summary>
@@ -174,6 +217,11 @@ flowchart LR
 
 </details>
 ````
+
+The **What changed** table holds the detail the diagram leaves out: one row
+per component from Step 3 (endpoints, classes, tables with their column
+changes, wiring files), grouped by area, similar items merged into one row.
+Keep it to about 25 rows; beyond that, merge further.
 
 ## Step 7 — Report back
 

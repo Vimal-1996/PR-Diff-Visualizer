@@ -4,8 +4,9 @@ A Claude Code skill that shows how your current branch differs from its base
 branch as a colour-coded Mermaid flowchart, with a short plain-English summary.
 
 - 🟩 added · 🟨 modified · 🟥 deleted
-- Groups changes into modules, classes, endpoints and DB tables, with arrows
-  showing how they depend on each other
+- Draws a small map (at most 12 nodes): one node per changed component, or one
+  per area for large PRs, with arrows showing how they depend on each other
+- Lists every changed endpoint, class and table in a "What changed" table
 - Compares committed changes only (`base...HEAD`) and warns if you have
   uncommitted work
 - Writes the result to `pr-diff.md` at the repo root (overwritten each run)
