@@ -15,7 +15,7 @@
 # The script never fetches and never modifies the repository.
 #
 # Exit codes: 0 ok (including no changes), 1 usage/repo error, 2 base not found,
-#             3 no merge base.
+#             3 no merge base (unrelated histories, or a shallow clone).
 
 set -euo pipefail
 
@@ -93,8 +93,24 @@ else
     || die 2 "could not find a base branch (tried origin/HEAD, origin/main, main, origin/master, master); pass one explicitly"
 fi
 
-merge_base=$(git merge-base "$base" HEAD 2>/dev/null) \
-  || die 3 "no common ancestor between '$base' and HEAD"
+if ! merge_base=$(git merge-base "$base" HEAD 2>/dev/null); then
+  if [[ $(git rev-parse --is-shallow-repository 2>/dev/null) == true ]]; then
+    die 3 "cannot find a merge base between '$base' and HEAD because this is a shallow clone; run 'git fetch --unshallow' (or fetch with more depth) and retry"
+  fi
+  die 3 "no common ancestor between '$base' and HEAD"
+fi
+
+# True only when the base really is a remote-tracking ref. A local branch
+# whose name contains a slash (e.g. release/1.2) is not one.
+base_is_remote=false
+if ref_exists "refs/remotes/$base" && ! ref_exists "refs/heads/$base"; then
+  base_is_remote=true
+fi
+
+# Print paths verbatim (UTF-8) instead of octal-escaped.
+git_q() {
+  git -c core.quotePath=false "$@"
+}
 
 head_branch=$(git symbolic-ref -q --short HEAD 2>/dev/null || echo "(detached)")
 
@@ -105,7 +121,7 @@ echo "base_ref: $base"
 echo "base_source: $base_source"
 echo "base_sha: $(git rev-parse --short "$base")"
 echo "merge_base: $(git rev-parse --short "$merge_base")"
-if [[ $base == */* ]]; then
+if [[ $base_is_remote == true ]]; then
   echo "note: remote-tracking ref; run 'git fetch' first if it may be stale"
 fi
 
@@ -116,8 +132,8 @@ echo "repo_root: $repo_root"
 
 section UNCOMMITTED
 # Ignore the skill's own output file so re-runs don't flag themselves.
-uncommitted=$(git status --porcelain --untracked-files=normal \
-  | grep -v -E "^.. ${OUTPUT_FILE}\$" || true)
+uncommitted=$(git_q status --porcelain --untracked-files=normal \
+  -- . ":(exclude)$OUTPUT_FILE")
 if [[ -n $uncommitted ]]; then
   echo "status: dirty (not included in diff)"
   echo "$uncommitted"
@@ -126,7 +142,12 @@ else
 fi
 
 section OUTPUT_FILE
-if git check-ignore -q "$OUTPUT_FILE" 2>/dev/null; then
+# tracked     — already committed; .gitignore would have no effect
+# ignored     — safe, will not show up in git status
+# not ignored — untracked and would show up in git status
+if git ls-files --error-unmatch -- "$OUTPUT_FILE" >/dev/null 2>&1; then
+  echo "$OUTPUT_FILE: tracked"
+elif git check-ignore -q "$OUTPUT_FILE" 2>/dev/null; then
   echo "$OUTPUT_FILE: ignored"
 else
   echo "$OUTPUT_FILE: not ignored"
@@ -142,14 +163,16 @@ section COMMITS
 git log --oneline --no-decorate "$merge_base..HEAD"
 
 section STAT
-git diff --stat=200 "$base...HEAD"
+# Wide enough for long paths, but cap the +/- bar so big files stay readable.
+git_q diff --stat=200 --stat-graph-width=40 "$base...HEAD"
 
 section NAME_STATUS
-git diff --name-status -M "$base...HEAD"
+# status<TAB>path (renames: R<score><TAB>old<TAB>new)
+git_q diff --name-status -M "$base...HEAD"
 
 section NUMSTAT
 # added<TAB>deleted<TAB>path ("-" for binary files)
-git diff --numstat -M "$base...HEAD"
+git_q diff --numstat -M "$base...HEAD"
 
 section RESULT
 echo "OK"

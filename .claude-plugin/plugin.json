@@ -1,0 +1,5 @@
+{
+  "name": "pr-diff-visualizer",
+  "description": "Visualize how the current git branch differs from its base branch as a colour-coded Mermaid flowchart with a plain-English summary.",
+  "version": "0.1.0"
+}

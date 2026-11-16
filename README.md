@@ -18,6 +18,12 @@ Copy or symlink the skill into your Claude Code skills directory:
 ln -s "$(pwd)/skills/pr-diff-visualizer" ~/.claude/skills/pr-diff-visualizer
 ```
 
+Or load this repo as a plugin, without copying anything:
+
+```bash
+claude --plugin-dir /path/to/PR-Diff-Visualizer
+```
+
 ## Use
 
 In Claude Code, inside any git repo:
@@ -36,8 +42,18 @@ do this for you.
 ## Layout
 
 ```
+.claude-plugin/plugin.json   # plugin manifest
 skills/pr-diff-visualizer/
 ├── SKILL.md                 # skill instructions
 └── scripts/collect_diff.sh  # gathers diff stats as sectioned plain text
-tests/                       # evals (coming later)
+tests/test_collect_diff.sh   # tests for the script
 ```
+
+## Test
+
+```bash
+bash tests/test_collect_diff.sh
+```
+
+The tests build throwaway git repos in a temp directory and check the
+script's base resolution, exit codes and output sections.
