@@ -1,4 +1,4 @@
-# pr-diff-visualizer
+# PR-Diff-Visualizer
 
 A Claude Code skill that shows how your current branch differs from its base
 branch as a colour-coded Mermaid flowchart, with a short plain-English summary.
