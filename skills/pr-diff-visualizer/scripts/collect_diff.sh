@@ -163,7 +163,8 @@ section COMMITS
 git log --oneline --no-decorate "$merge_base..HEAD"
 
 section STAT
-git_q diff --stat=200 "$base...HEAD"
+# Wide enough for long paths, but cap the +/- bar so big files stay readable.
+git_q diff --stat=200 --stat-graph-width=40 "$base...HEAD"
 
 section NAME_STATUS
 # status<TAB>path (renames: R<score><TAB>old<TAB>new)

@@ -171,6 +171,15 @@ echo "x" > "$r/naïve file.txt"
 run "$r"
 expect_has "naïve file.txt" "non-ASCII uncommitted path is readable"
 
+echo "stat width"
+r=$(new_repo stat)
+seq 1 500 > "$r/big.txt"
+git -C "$r" add -A
+git -C "$r" commit -q -m "add big file"
+run "$r"
+expect_has "big.txt" "large file appears in the stat"
+expect_hasnt "$(printf '+%.0s' {1..60})" "the +/- bar is capped"
+
 echo
 echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

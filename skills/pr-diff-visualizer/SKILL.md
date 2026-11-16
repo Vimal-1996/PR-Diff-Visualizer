@@ -70,6 +70,21 @@ Classify each meaningful change into one of:
 | **Endpoint** | route decorators/registrations (`@app.get`, `router.post`, `@GetMapping`, `urls.py`, etc.) — label as `METHOD /path` |
 | **DB table** | migrations, `CREATE/ALTER/DROP TABLE`, ORM model definitions |
 
+Many repos have none of the last three (scripts, CLIs, libraries, docs,
+infrastructure). Then use the kinds that fit instead, still one node per
+meaningful change:
+
+| Kind | How to spot it |
+|------|----------------|
+| **Function** | added/removed/changed function, shell function or command in a script; label as `name()` |
+| **Config** | manifests, CI workflows, build/deploy settings, env files |
+| **Test** | test files or suites; draw an edge to what they exercise |
+| **Doc** | README and other prose; one node per file, no symbol-level nodes |
+
+For a file with several distinct changes, make the file a `subgraph` and its
+changed symbols the nodes inside it. Don't invent classes, endpoints or
+tables to fill the diagram.
+
 Status per node:
 - **added** — new file or new symbol
 - **modified** — existing symbol changed; renames (`R` in `NAME_STATUS`) count
@@ -77,7 +92,9 @@ Status per node:
 - **deleted** — removed file or symbol
 
 Dependencies: draw an edge `A --> B` when changed code in A imports, calls,
-queries or exposes B (e.g. endpoint → service → model → table). Only include
+queries, runs, tests or documents B (e.g. endpoint → service → model → table,
+or test → function). Label an edge when the relationship isn't obvious:
+`A -->|tests| B`. Only include
 edges you can see evidence for in the diff or the touched files; unchanged
 components that are needed to explain an edge may appear as plain
 (unstyled) nodes.
