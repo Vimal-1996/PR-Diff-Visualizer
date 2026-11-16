@@ -54,8 +54,8 @@ Use `NAME_STATUS` and `NUMSTAT` to pick files, then read their diffs with
 - Fields in `NAME_STATUS` and `NUMSTAT` are tab-separated, so paths may
   contain spaces; renames list the old path then the new one.
 - Skip noise: lockfiles, generated/minified files, vendored code, snapshots,
-  binary files (`-` in `NUMSTAT`). Count them, but don't diagram them
-  individually.
+  binary files (`-` in `NUMSTAT`). Don't diagram them; count them by type
+  and report the counts on the **Not diagrammed** line (Step 6).
 - For large PRs, prioritise by lines changed and by structural significance
   (new/deleted files, public interfaces, routes, migrations).
 
@@ -91,18 +91,33 @@ Status per node:
   as modified and are labelled `old → new`
 - **deleted** — removed file or symbol
 
+Column and field changes don't get their own nodes. Put them in the label of
+the table or model node, which is then **modified**: `+` added, `-` removed,
+`~` changed, e.g. `"users (+ last_order_at, - legacy_id)"`. List at most three,
+then `+N more`.
+
 Dependencies: draw an edge `A --> B` when changed code in A imports, calls,
 queries, runs, tests or documents B (e.g. endpoint → service → model → table,
 or test → function). Label an edge when the relationship isn't obvious:
-`A -->|tests| B`. Only include
-edges you can see evidence for in the diff or the touched files; unchanged
-components that are needed to explain an edge may appear as plain
-(unstyled) nodes.
+`A -->|tests| B`. Only include edges you can see evidence for in the diff or
+the touched files; unchanged components that are needed to explain an edge
+may appear as plain (unstyled) nodes.
+
+Removed dependencies: when the diff removes an import, call or registration
+from a component that still exists, draw the old edge dashed and labelled:
+`A -.->|removed| B`. Edges out of a **deleted** node stay solid; the node's
+colour already shows they are gone.
 
 ## Step 4 — Build the Mermaid flowchart
 
 - Use `flowchart LR`.
 - One `subgraph` per module/directory.
+- Exception: DB tables. Put all table nodes in a single subgraph titled
+  `database`, whatever directory the migrations live in, and name the
+  migration file(s) in the title when there are three or fewer, e.g.
+  `subgraph db["database (migrations/002_create_orders.sql)"]`. Draw tables
+  as cylinders: `t1[("orders")]`. Model/ORM classes stay in their own
+  directory's subgraph with an edge to their table.
 - Keep node IDs simple (`n1`, `svc_user`); put readable text in labels and
   quote labels containing special characters: `n1["POST /users"]`.
 - Cap at ~30 nodes. Beyond that, collapse small changes into one node per
@@ -143,6 +158,8 @@ the user's repo.** Use this layout:
 flowchart LR
   ...
 ```
+
+**Not diagrammed:** 1 lockfile, 2 generated files   ← only if files were skipped as noise
 
 ## Summary
 
