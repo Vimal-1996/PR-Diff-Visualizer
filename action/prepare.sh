@@ -59,6 +59,9 @@ Use the pr-diff-visualizer skill to visualize this pull request.
   bash $collector $BASE_REF
 - HEAD is detached in CI. The pull request's branch is named "$head_branch";
   use that name wherever the skill asks for the branch.
+- The base was chosen by the workflow, not by a person. In the header line of
+  pr-diff.md, write the base source as "pull request base" instead of
+  "user override".
 - Write the result to pr-diff.md in the repository root, exactly as the skill
   describes. Do not create or change any other file.
 - You are running unattended in CI, so do not ask questions. The only shell
