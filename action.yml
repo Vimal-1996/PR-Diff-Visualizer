@@ -1,0 +1,141 @@
+name: PR Diff Visualizer
+description: >-
+  Post a Mermaid diagram and plain-English summary of what a pull request
+  changes, as a single PR comment that is updated on every push.
+author: Vimal-1996
+branding:
+  icon: git-pull-request
+  color: green
+
+inputs:
+  anthropic_api_key:
+    description: Anthropic API key. Pass it from a repository secret.
+    required: true
+  base_branch:
+    description: Branch to compare against. Defaults to the pull request's base branch.
+    required: false
+    default: ""
+  model:
+    description: Claude model used to read the diff and draw the diagram.
+    required: false
+    default: claude-sonnet-5-5
+  github_token:
+    description: Token used to post the comment. Needs pull-requests write access.
+    required: false
+    default: ${{ github.token }}
+  skip_paths:
+    description: >-
+      Newline-separated globs. The action does nothing when every changed file
+      matches one of them.
+    required: false
+    default: |
+      docs/**
+      **/*.md
+  max_changed_lines:
+    description: >-
+      Above this many changed lines (lockfiles and minified files not counted)
+      the action posts a short "too large" comment instead of a diagram.
+      0 disables the limit.
+    required: false
+    default: "20000"
+  max_turns:
+    description: Upper limit on the number of steps Claude may take in one run.
+    required: false
+    default: "40"
+
+outputs:
+  ran:
+    description: "'true' if a diagram was generated and posted."
+    value: ${{ steps.gate.outputs.run }}
+  skipped_reason:
+    description: Why the action did nothing, when it was skipped.
+    value: ${{ steps.gate.outputs.reason }}
+  mermaid:
+    description: "Result of the diagram check: ok, invalid, unvalidated or none."
+    value: ${{ steps.validate.outputs.mermaid }}
+
+runs:
+  using: composite
+  steps:
+    # Every value that comes from the event or from inputs is passed through
+    # `env`, never written into a script line.
+    - name: Decide whether to run
+      id: gate
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        BASE_REPO: ${{ github.repository }}
+        IS_DRAFT: ${{ github.event.pull_request.draft }}
+        HAS_API_KEY: ${{ inputs.anthropic_api_key != '' }}
+        BASE_BRANCH: ${{ inputs.base_branch || github.event.pull_request.base.ref }}
+        SKIP_PATHS: ${{ inputs.skip_paths }}
+        MAX_CHANGED_LINES: ${{ inputs.max_changed_lines }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "$ACTION_PATH/action/gate.sh"
+
+    - name: Post "too large" note
+      if: steps.gate.outputs.too_large == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        REASON: ${{ steps.gate.outputs.reason }}
+        WORK_DIR: ${{ runner.temp }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        printf '## PR diff\n\nThis pull request is too large for an automatic diagram: %s.\n' "$REASON" > "$WORK_DIR/pr-diff-comment.md"
+        bash "$ACTION_PATH/action/post_comment.sh" "$WORK_DIR/pr-diff-comment.md"
+
+    - name: Install the skill and prepare the run
+      id: prepare
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        BASE_REF: ${{ steps.gate.outputs.base_ref }}
+        HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        MODEL: ${{ inputs.model }}
+        MAX_TURNS: ${{ inputs.max_turns }}
+        WORK_DIR: ${{ runner.temp }}
+      run: bash "$ACTION_PATH/action/prepare.sh"
+
+    # The GitHub token is deliberately not given to this step.
+    - name: Run the skill with Claude Code
+      if: steps.gate.outputs.run == 'true'
+      uses: anthropics/claude-code-action/base-action@v1
+      with:
+        prompt_file: ${{ steps.prepare.outputs.prompt_file }}
+        claude_args: ${{ steps.prepare.outputs.claude_args }}
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+
+    - name: Check that only pr-diff.md was written
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        WORK_DIR: ${{ runner.temp }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "$ACTION_PATH/action/verify.sh"
+
+    - name: Check that the diagram renders
+      id: validate
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        WORK_DIR: ${{ runner.temp }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "$ACTION_PATH/action/validate_mermaid.sh" pr-diff.md "$WORK_DIR/pr-diff-comment.md"
+
+    - name: Post or update the comment
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        WORK_DIR: ${{ runner.temp }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "$ACTION_PATH/action/post_comment.sh" "$WORK_DIR/pr-diff-comment.md"

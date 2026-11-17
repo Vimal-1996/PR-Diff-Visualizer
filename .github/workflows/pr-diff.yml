@@ -1,0 +1,37 @@
+# Runs this repository's own action on its pull requests.
+
+name: PR diff diagram
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-diff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  diagram:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The action from this checkout, so a PR tests its own changes.
+      - uses: ./
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The skill itself is Markdown, so only skip pure docs/ changes here.
+          skip_paths: |
+            docs/**
