@@ -1,0 +1,47 @@
+# Copy this file to .github/workflows/pr-diff.yml in your repository, then add
+# an ANTHROPIC_API_KEY secret (Settings → Secrets and variables → Actions).
+#
+# On every pull request it posts one comment with a diagram and summary of
+# the change, and updates that same comment on later pushes.
+
+name: PR diff diagram
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# A new push replaces the run that is still in progress for the same PR.
+concurrency:
+  group: pr-diff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  diagram:
+    # Drafts are skipped, and so are pull requests from forks, which cannot
+    # read the secret. The action checks both again itself.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0              # full history, needed to find the base
+          persist-credentials: false
+
+      - uses: Vimal-1996/PR-Diff-Visualizer@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Optional settings, shown with their defaults:
+          # base_branch: ""            # default: the pull request's base branch
+          # model: claude-sonnet-5-5
+          # max_changed_lines: "20000" # larger PRs get a short note instead
+          # skip_paths: |              # do nothing if only these changed
+          #   docs/**
+          #   **/*.md
